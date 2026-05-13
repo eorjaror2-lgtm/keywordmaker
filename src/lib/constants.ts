@@ -7,5 +7,5 @@ export const REGION_TIERS = [
 export const ALL_REGIONS = REGION_TIERS.flatMap(t => t.regions);
 
 export function getRegionTierInfo(regionName: string) {
-  return REGION_TIERS.find(t => t.regions.includes(regionName as any));
+  return REGION_TIERS.find(t => (t.regions as readonly string[]).includes(regionName));
 }
