@@ -44,6 +44,8 @@ export default function Dashboard() {
   
   // Real-time Events State
   const [events, setEvents] = useState(INITIAL_EVENTS);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
 
   // View Toggle State
   const [viewMode, setViewMode] = useState<'calendar' | 'timeline' | 'keyword'>('calendar');
@@ -121,7 +123,7 @@ export default function Dashboard() {
     const textColor = isBlogA ? '#1d4ed8' : isBlogB ? '#047857' : '#c2410c';
     const title = e.region ? `[${e.region}] ${e.keyword}`.trim() : e.keyword;
     
-    return { title, date: e.date, backgroundColor, borderColor, textColor };
+    return { id: e.id, title, date: e.date, backgroundColor, borderColor, textColor };
   });
 
   // Transform and filter DB_EVENTS for Timeline view
@@ -327,15 +329,87 @@ export default function Dashboard() {
       await fetchData();
     } catch (err) {
       console.error(err);
-    } finally {
+  } finally {
       setIsModifying(false);
     }
   };
 
+  const handleDeleteCalendarEvent = async (id: string) => {
+    if (!window.confirm('정말로 이 일정을 삭제하시겠습니까?')) return;
+    
+    setIsDeletingEvent(true);
+    try {
+      // API 삭제 호출 (Supabase 연동)
+      const res = await fetch(`/api/posts?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      
+      // 상태 동기화 (UI 즉시 업데이트)
+      setEvents(prev => prev.filter(e => e.id !== id));
+      setSelectedEvent(null);
+    } catch (err) {
+      console.error(err);
+      alert('일정 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeletingEvent(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 font-sans text-slate-900">
       
+      {/* Event Details & Delete Modal */}
+      {selectedEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-indigo-500" /> 일정 상세
+              </h3>
+              <button onClick={() => setSelectedEvent(null)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-5">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-500">채널</span>
+                  <span className="text-sm font-bold px-3 py-1 rounded-md border bg-slate-50 border-slate-200">{selectedEvent.channel}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-500">날짜</span>
+                  <span className="text-sm font-bold text-indigo-700">{selectedEvent.date}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-500">키워드</span>
+                  <span className="text-base font-bold text-slate-800">
+                    {selectedEvent.region && <span className="text-indigo-600 mr-1">[{selectedEvent.region}]</span>}
+                    {selectedEvent.keyword}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="pt-2 flex gap-3">
+                <button 
+                  onClick={() => setSelectedEvent(null)}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors"
+                >
+                  닫기
+                </button>
+                <button 
+                  onClick={() => handleDeleteCalendarEvent(selectedEvent.id)}
+                  disabled={isDeletingEvent}
+                  className="flex-1 py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-sm font-bold hover:bg-rose-600 hover:text-white transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  일정 삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Region Management Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -587,6 +661,10 @@ export default function Dashboard() {
                     initialView="dayGridMonth"
                     events={calendarEvents}
                     dateClick={handleDateClick}
+                    eventClick={(info) => {
+                      const ev = events.find(e => e.id === info.event.id);
+                      if (ev) setSelectedEvent(ev);
+                    }}
                     height="100%"
                     headerToolbar={{
                       left: 'prev,next today',
